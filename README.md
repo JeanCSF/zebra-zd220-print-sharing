@@ -27,6 +27,7 @@ Client PCs (2-5)                    Host PC (always started first)
 | ------------------ | -------------------------------- | --------------------------------------------- |
 | `setup-host.ps1`   | host PC (elevated)               | share + LPD service + firewall + hardening    |
 | `setup-client.ps1` | each client PC (elevated)        | local printer via LPR port to the host        |
+| `diagnose.ps1`     | host and/or client (elevated)    | health checks + raw job capture (`-Watch`)     |
 
 ## Step 0 — physical / network prep (manual)
 
@@ -100,6 +101,7 @@ one: `Remove-Printer "Etiquetas ZD220"`.
 | ---------------------------------------- | --------------------------------------------------------------------- |
 | `Test-NetConnection ... 515` fails       | host on? `Get-Service LPDSVC` running? firewall rule enabled?          |
 | Jobs stuck in client queue               | `Restart-Service Spooler` on the **host** (task does this daily too)   |
+| Job sent, queue clears, nothing prints   | run `.\diagnose.ps1 -Watch` on the host while printing — captures the raw job; EPL data into a ZPL printer prints nothing |
 | "Printer offline" on client              | host reachable on 515? LPR port monitor marks errors but retries        |
 | Driver missing on client                 | install Zebra Setup Utilities driver, re-run script                     |
 | Old `\\HOST\Zebra` still listed          | remove under the user's own session: `Remove-Printer "\\HOST\Zebra"`    |
