@@ -33,28 +33,36 @@ Test-NetConnection <HOST_IP> -Port 515
 ## Step 1 — read the REAL port configuration (CLIENT)
 
 `Get-PrinterPort` can show an empty `HostAddress` for LPR ports — the
-authoritative config lives in the port monitor registry:
+authoritative config lives in the port monitor registry. **Important:** ports
+created by `Add-PrinterPort -LprHostAddress` usually register under the
+**`Standard TCP/IP Port`** monitor (with `Protocol = 2` = LPR), NOT under the
+legacy `LPR Port` monitor — an empty `LPR Port\Ports` key is normal.
+
+Enumerate **all** monitors to find where the port really lives:
 
 ```powershell
-Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\LPR Port\Ports' |
-    ForEach-Object { $_.PSChildName; Get-ItemProperty $_.PSPath | Format-List }
+Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors' |
+    ForEach-Object { $mon = $_.PSChildName
+        Get-ChildItem "$($_.PSPath)\Ports" -ErrorAction SilentlyContinue |
+        ForEach-Object { Write-Host "[$mon] $($_.PSChildName)"; Get-ItemProperty $_.PSPath | Format-List } }
 ```
 
-Expected output (names may vary slightly):
+Expected entry (somewhere in the output):
 
 ```
-LPR_ZD220
-    ServerName : <HOST_IP>
-    Queue      : ZD220
-    ...
+[Standard TCP/IP Port] LPR_ZD220
+    HostAddress : <HOST_IP>
+    PortNumber  : 515
+    Protocol    : 2          (1 = RAW, 2 = LPR)
+    Queue       : ZD220
 ```
 
-| Finding                                   | Meaning / fix                          |
-| ----------------------------------------- | -------------------------------------- |
-| Key `LPR Port` **does not exist**         | LPR Port Monitor not installed → enable the feature and **reboot**, then recreate the port |
-| `ServerName` wrong IP / empty             | Port was created broken → [recreate it](#fix--recreate-the-lpr-port) |
-| `Queue` ≠ `ZD220`                         | Wrong queue name → recreate the port with `-QueueName` matching the host **ShareName** |
-| Everything correct                        | Go to Step 2                           |
+| Finding                                        | Meaning / fix                                      |
+| ---------------------------------------------- | -------------------------------------------------- |
+| `LPR_ZD220` appears **under no monitor**       | Port was never really created → [recreate it](#fix--recreate-the-lpr-port) |
+| `HostAddress` wrong/empty or `Queue` ≠ `ZD220` | Broken config → recreate the port                  |
+| `Protocol` = 1                                 | RAW protocol — wrong for Windows LPD → recreate with `-LprHostAddress/-LprQueueName` |
+| Everything correct                             | Go to Step 2                                       |
 
 ---
 
