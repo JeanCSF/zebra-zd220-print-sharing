@@ -62,7 +62,24 @@ Expected entry (somewhere in the output):
 | `LPR_ZD220` appears **under no monitor**       | Port was never really created → [recreate it](#fix--recreate-the-lpr-port) |
 | `HostAddress` wrong/empty or `Queue` ≠ `ZD220` | Broken config → recreate the port                  |
 | `Protocol` = 1                                 | RAW protocol — wrong for Windows LPD → recreate with `-LprHostAddress/-LprQueueName` |
-| Everything correct                             | Go to Step 2                                       |
+| Everything correct                             | Go to Step 1.5                                     |
+
+---
+
+## Step 1.5 — the `lpr.exe` isolation test (CLIENT)
+
+`lpr.exe` ships with Windows and sends a file straight to `host:515`,
+**bypassing the Windows spooler/port monitor entirely**:
+
+```powershell
+"^XA^FO50,50^A0N,50,50^FDTESTE LPR^FS^XZ" | Out-File -Encoding ascii $env:TEMP\teste.zpl
+lpr -S <HOST_IP> -P ZD220 -o l $env:TEMP\teste.zpl
+```
+
+| Result                          | Meaning                                              |
+| ------------------------------- | ---------------------------------------------------- |
+| Label prints                    | Host is 100% fine → problem is the client's spooler/port/printer object → recreate printer+port |
+| `lpr` errors / times out        | Connectivity or LPD issue → wrong IP? host firewall? `Test-NetConnection <HOST_IP> -Port 515` |
 
 ---
 

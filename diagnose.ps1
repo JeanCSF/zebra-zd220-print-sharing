@@ -207,6 +207,19 @@ if ($isClient -or (-not $isHost -and -not $isClient)) {
         Warn "Recrie com: Add-PrinterPort -Name LPR_ZD220 -LprHostAddress <IP_HOST> -LprQueueName ZD220"
     }
 
+    # lpr.exe ships with Windows and sends a file straight to host:515
+    # WITHOUT the Windows spooler - the best isolation test
+    Hdr "CLIENTE - teste lpr.exe (bypass total do spooler)"
+    if (Test-Path "$env:SystemRoot\System32\lpr.exe") {
+        Ok "lpr.exe presente. Teste manual definitivo:"
+        Write-Host '      "^XA^FO50,50^A0N,50,50^FDTESTE LPR^FS^XZ" | Out-File -Encoding ascii $env:TEMP\teste.zpl'
+        Write-Host "      lpr -S $HostIP -P $(if($queue){$queue}else{'ZD220'}) -o l `$env:TEMP\teste.zpl"
+        Write-Host "    -> se a etiqueta imprimir: host esta 100% OK, o problema e o spooler/porta deste cliente"
+        Write-Host "    -> se falhar/com erro: problema e rede/host (firewall, IP errado, LPDSVC)"
+    } else {
+        Warn "lpr.exe ausente neste PC - pule este teste"
+    }
+
     if ($HostIP) {
         Hdr "CLIENTE - conectividade com host $HostIP"
         $ok515 = Test-NetConnection -ComputerName $HostIP -Port 515 -InformationLevel Quiet -WarningAction SilentlyContinue
