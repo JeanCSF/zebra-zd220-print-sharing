@@ -66,6 +66,28 @@ Expected entry (somewhere in the output):
 
 ---
 
+## KNOWN ROOT CAUSE — LPR Byte Counting (check this first!)
+
+**Windows LPD silently drops LPR jobs whose control file doesn't declare the
+job's byte count.** The Standard TCP/IP port monitor (tcpmon) does NOT send
+byte counts by default — so the job "completes" cleanly on the client, never
+reaches the host queue, and produces **no error events anywhere**. `lpr.exe`
+works because it always sends proper byte counts.
+
+Fix on the client (also done automatically by `setup-client.ps1`):
+
+```powershell
+$k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\Standard TCP/IP Port\Ports\LPR_ZD220'
+Set-ItemProperty $k -Name 'ByteCount'    -Value 1 -Type DWord
+Set-ItemProperty $k -Name 'Double Spool' -Value 1 -Type DWord
+Restart-Service Spooler -Force
+```
+
+GUI equivalent: printer Properties → Ports → Configure Port → check
+**"LPR Byte Counting Enabled"**.
+
+---
+
 ## Step 1.5 — the `lpr.exe` isolation test (CLIENT)
 
 `lpr.exe` ships with Windows and sends a file straight to `host:515`,

@@ -122,8 +122,26 @@ if ($existing) {
         Warn "ATENCAO: a porta aponta p/ outro IP ($($existing.HostAddress)). Se estiver errado, remova a impressora e a porta e reexecute."
     }
 } else {
-    Add-PrinterPort -Name $PortName -LprHostAddress $HostIP -LprQueueName $QueueName
-    Ok "Porta LPR criada"
+    Add-PrinterPort -Name $PortName -LprHostAddress $HostIP -LprQueueName $QueueName -LprByteCounting
+    Ok "Porta LPR criada (com byte counting)"
+}
+
+# CRITICAL: Windows LPD silently drops LPR jobs whose control file lacks the
+# byte count - the job "completes" on the client but never reaches the queue.
+# ByteCount=1 forces the port monitor to spool the job, count the bytes and
+# declare the size ('Double Spool' is the companion flag for that mechanism).
+$portKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\Standard TCP/IP Port\Ports\$PortName"
+if (Test-Path $portKey) {
+    Set-ItemProperty $portKey -Name 'ByteCount'    -Value 1 -Type DWord
+    Set-ItemProperty $portKey -Name 'Double Spool' -Value 1 -Type DWord
+    try {
+        Restart-Service Spooler -Force -ErrorAction Stop
+        Ok "ByteCount habilitado na porta + spooler recarregado (exigido pelo LPD do host)"
+    } catch {
+        Warn "ByteCount setado - reinicie o spooler/PC para o monitor reler a porta"
+    }
+} else {
+    Warn "Chave da porta nao encontrada no registro - byte counting NAO aplicado"
 }
 
 # ----------------------------------------------------------------- printer --
