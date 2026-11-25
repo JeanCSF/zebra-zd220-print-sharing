@@ -178,6 +178,26 @@ if ($isClient -or (-not $isHost -and -not $isClient)) {
         if (-not $HostIP -and $p.HostAddress) { $HostIP = $p.HostAddress }
     }
 
+    # the authoritative LPR config lives in the port monitor registry, not in
+    # the PrinterPort CIM object (HostAddress can show empty there)
+    Hdr "CLIENTE - config real das portas LPR (registro do monitor)"
+    $lprReg = 'HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\LPR Port\Ports'
+    if (Test-Path $lprReg) {
+        Get-ChildItem $lprReg | ForEach-Object {
+            $cfg = Get-ItemProperty $_.PSPath
+            Write-Host "  Porta: $($_.PSChildName)" -ForegroundColor White
+            $cfg.PSObject.Properties |
+                Where-Object { $_.Name -notmatch '^PS(Path|ParentPath|ChildName|Provider|Drive)$' } |
+                ForEach-Object { Write-Host "      $($_.Name) = $($_.Value)" }
+        }
+        $srv = (Get-ItemProperty "$lprReg\LPR_$queue" -ErrorAction SilentlyContinue).ServerName
+        if (-not $srv) { $srv = (Get-ChildItem $lprReg | Select-Object -First 1 | ForEach-Object { (Get-ItemProperty $_.PSPath).ServerName }) }
+        if ($srv -and -not $HostIP) { $HostIP = $srv }
+        if (-not $srv) { Bad "Nenhum ServerName configurado nas portas LPR - porta criada errada!" }
+    } else {
+        Bad "Chave 'LPR Port' nao existe no registro - o LPR Port Monitor NAO esta instalado neste PC!"
+    }
+
     if ($HostIP) {
         Hdr "CLIENTE - conectividade com host $HostIP"
         $ok515 = Test-NetConnection -ComputerName $HostIP -Port 515 -InformationLevel Quiet -WarningAction SilentlyContinue
